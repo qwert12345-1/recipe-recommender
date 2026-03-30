@@ -60,6 +60,8 @@ def load_recipe_metadata(metadata_path: str = "models/recipe_metadata.csv") -> p
     df = pd.read_csv(metadata_path)
 
     json_columns = [
+        "ingredients_clean",
+        "ingredient_lines",
         "cuisine_type",
         "diet_labels",
         "health_labels",
@@ -168,6 +170,7 @@ def get_top_k_matches(
     max_calories: Optional[float] = None,
     exclude_ingredients: Optional[List[str]] = None,
     require_all_query_matches: bool = False,
+    require_pantry_subset: bool = False,
     min_match_count: Optional[int] = None,
 ) -> pd.DataFrame:
     """
@@ -222,20 +225,28 @@ def get_top_k_matches(
     matched_ingredients_col = []
     matched_count_col = []
     query_coverage_col = []
+    missing_ingredients_col = []
+    missing_count_col = []
 
     for ingredient_set in recipe_ingredient_sets:
         matched = sorted(query_set.intersection(ingredient_set))
+        missing = sorted(ingredient_set.difference(query_set))
+
         matched_count = len(matched)
         coverage = matched_count / len(query_set) if query_set else 0.0
 
         matched_ingredients_col.append(matched)
         matched_count_col.append(matched_count)
         query_coverage_col.append(coverage)
+        missing_ingredients_col.append(missing)
+        missing_count_col.append(len(missing))
 
     results_df["matched_ingredients"] = matched_ingredients_col
     results_df["matched_count"] = matched_count_col
     results_df["query_coverage"] = query_coverage_col
-
+    results_df["missing_ingredients"] = missing_ingredients_col
+    results_df["missing_count"] = missing_count_col
+    
     filter_mask = build_filter_mask(
         results_df=results_df,
         recipe_ingredient_sets=recipe_ingredient_sets,
@@ -259,14 +270,24 @@ def get_top_k_matches(
         min_match_count=min_match_count,
     )
 
+    if require_pantry_subset:
+        results_df = results_df[results_df["missing_count"] == 0].copy()
+
     if "calories" in results_df.columns:
         results_df["calories_numeric"] = pd.to_numeric(results_df["calories"], errors="coerce")
     else:
         results_df["calories_numeric"] = float("inf")
 
     results_df = results_df.sort_values(
-        by=["similarity", "matched_count", "query_coverage", "calories_numeric", "recipe_name"],
-        ascending=[False, False, False, True, True],
+        by=[
+            "similarity",
+            "matched_count",
+            "query_coverage",
+            "missing_count",
+            "calories_numeric",
+            "recipe_name",
+        ],
+        ascending=[False, False, False, True, True, True],
     ).reset_index(drop=True)
 
     results_df = results_df.drop(columns=["calories_numeric"])
@@ -286,6 +307,7 @@ def recommend_recipes(
     max_calories: Optional[float] = None,
     exclude_ingredients: Optional[List[str]] = None,
     require_all_query_matches: bool = False,
+    require_pantry_subset: bool = False,
     min_match_count: Optional[int] = None,
 ) -> pd.DataFrame:
     """
@@ -303,6 +325,7 @@ def recommend_recipes(
         max_calories=max_calories,
         exclude_ingredients=exclude_ingredients,
         require_all_query_matches=require_all_query_matches,
+        require_pantry_subset=require_pantry_subset,
         min_match_count=min_match_count,
     )
 
@@ -328,7 +351,8 @@ def pretty_print_results(results_df: pd.DataFrame) -> None:
         print(f"Meal Type: {row.get('meal_type', [])}")
         print(f"Dish Type: {row.get('dish_type', [])}")
         print(f"Diet Labels: {row.get('diet_labels', [])}")
-
+        print(f"Missing Ingredients: {row.get('missing_ingredients', [])}")
+        print(f"Missing Count: {row.get('missing_count', 0)}")
 
 if __name__ == "__main__":
     print("=" * 80)

@@ -1,3 +1,7 @@
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), "src"))
+
 import streamlit as st
 import pandas as pd
 from similarity import recommend_recipes, load_recipe_metadata
@@ -22,6 +26,12 @@ def flatten_unique_values(df: pd.DataFrame, column: str) -> list[str]:
     return sorted(values)
 
 
+def render_list_value(value):
+    if isinstance(value, list) and value:
+        return ", ".join(map(str, value))
+    return "N/A"
+
+
 st.set_page_config(page_title="Recipe Recommender", layout="wide")
 st.title("🍽️ Recipe Recommendation System")
 
@@ -39,7 +49,7 @@ ingredients_input = st.text_input(
     placeholder="e.g. chicken, garlic, olive oil"
 )
 
-top_k = st.slider("Number of results", 1, 10, 5)
+top_k = st.slider("Number of results", 1, 20, 5)
 
 st.header("Optional Filters")
 
@@ -59,6 +69,7 @@ exclude_ingredients_text = st.text_input(
 )
 
 min_match_count = st.slider("Minimum matched ingredients", 0, 10, 0)
+pantry_only = st.checkbox("Only show recipes I can make right now", value=False)
 
 if st.button("Find Recipes"):
     if not ingredients_input.strip():
@@ -86,6 +97,7 @@ if st.button("Find Recipes"):
                 min_calories=min_calories,
                 max_calories=max_calories,
                 exclude_ingredients=exclude_ingredients_list or None,
+                require_pantry_subset=pantry_only,
                 min_match_count=min_match_count if min_match_count > 0 else None,
             )
 
@@ -96,14 +108,45 @@ if st.button("Find Recipes"):
 
                 for _, row in results.iterrows():
                     st.markdown("---")
-                    st.subheader(row["recipe_name"])
-                    st.write(f"**Similarity:** {row['similarity']:.4f}")
-                    st.write(f"**Matched Ingredients:** {row['matched_ingredients']}")
-                    st.write(f"**Calories (total):** {row['calories']:.0f}")
-                    st.write(f"**Cuisine:** {row.get('cuisine_type', [])}")
-                    st.write(f"**Meal Type:** {row.get('meal_type', [])}")
-                    st.write(f"**Dish Type:** {row.get('dish_type', [])}")
-                    st.write(f"**Diet Labels:** {row.get('diet_labels', [])}")
+
+                    col1, col2 = st.columns([1, 2])
+
+                    with col1:
+                        image_url = row.get("image_url")
+                        if pd.notna(image_url) and str(image_url).strip():
+                            st.image(image_url, use_container_width=True)
+                        else:
+                            st.write("No image available")
+
+                    with col2:
+                        st.subheader(row["recipe_name"])
+
+                        url = row.get("url")
+                        if pd.notna(url) and str(url).strip():
+                            st.markdown(f"[Open full recipe]({url})")
+
+                        st.write(f"**Similarity:** {row['similarity']:.4f}")
+                        st.write(f"**Matched Ingredients:** {render_list_value(row.get('matched_ingredients', []))}")
+                        st.write(f"**Missing Ingredients:** {render_list_value(row.get('missing_ingredients', []))}")
+                        st.write(f"**Missing Count:** {row.get('missing_count', 0)}")
+
+                        calories_value = pd.to_numeric(row.get("calories"), errors="coerce")
+                        if pd.notna(calories_value):
+                            st.write(f"**Calories (total):** {calories_value:.0f}")
+                        else:
+                            st.write("**Calories (total):** N/A")
+
+                        st.write(f"**Servings:** {row.get('servings', 'N/A')}")
+                        st.write(f"**Cuisine:** {render_list_value(row.get('cuisine_type', []))}")
+                        st.write(f"**Meal Type:** {render_list_value(row.get('meal_type', []))}")
+                        st.write(f"**Dish Type:** {render_list_value(row.get('dish_type', []))}")
+                        st.write(f"**Diet Labels:** {render_list_value(row.get('diet_labels', []))}")
+
+                        ingredient_lines = row.get("ingredient_lines", [])
+                        if isinstance(ingredient_lines, list) and ingredient_lines:
+                            with st.expander("Show ingredient lines"):
+                                for line in ingredient_lines:
+                                    st.write(f"- {line}")
 
         except Exception as e:
             st.error(f"Error: {str(e)}")

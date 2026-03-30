@@ -300,11 +300,16 @@ def build_ingredient_vocab(df):
 
 def make_model_df(df):
     """
-    Create a smaller downstream-friendly table for vectorization/ranking.
+    Create a downstream-friendly table for vectorization/ranking/app display.
+    Keep enough fields so the Streamlit app can render recipe cards.
     """
     model_columns = [
         "recipe_id",
         "recipe_name",
+        "url",
+        "image_url",
+        "servings",
+        "ingredient_lines",
         "ingredients_clean",
         "calories",
         "cuisine_type",
@@ -313,14 +318,13 @@ def make_model_df(df):
         "meal_type",
         "dish_type",
     ]
-    return df[model_columns].copy()
+    existing_columns = [col for col in model_columns if col in df.columns]
+    return df[existing_columns].copy()
 
 
 def serialize_for_csv(df):
     """
     Convert list/dict columns into JSON strings before saving CSV.
-    This avoids ambiguous Python-list string formatting and makes
-    downstream loading much safer.
     """
     df = df.copy()
 

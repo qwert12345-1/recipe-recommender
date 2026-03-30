@@ -21,12 +21,13 @@ def load_model_dataframe(csv_path: str) -> pd.DataFrame:
     df = pd.read_csv(csv_path)
 
     json_columns = [
-        "ingredients_clean",
-        "cuisine_type",
-        "diet_labels",
-        "health_labels",
-        "meal_type",
-        "dish_type",
+    "ingredients_clean",
+    "ingredient_lines",
+    "cuisine_type",
+    "diet_labels",
+    "health_labels",
+    "meal_type",
+    "dish_type",
     ]
 
     for col in json_columns:
@@ -264,7 +265,8 @@ def load_tensor(load_path: str) -> torch.Tensor:
 
 def save_recipe_metadata(df: pd.DataFrame, save_path: str) -> None:
     """
-    Save lightweight metadata aligned row-for-row with the recipe tensor matrix.
+    Save metadata aligned row-for-row with the recipe tensor matrix.
+    Keep enough fields for rich Streamlit recipe cards.
     """
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
 
@@ -272,6 +274,11 @@ def save_recipe_metadata(df: pd.DataFrame, save_path: str) -> None:
         col for col in [
             "recipe_id",
             "recipe_name",
+            "url",
+            "image_url",
+            "servings",
+            "ingredient_lines",
+            "ingredients_clean",
             "calories",
             "cuisine_type",
             "diet_labels",
