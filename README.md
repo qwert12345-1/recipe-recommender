@@ -90,6 +90,23 @@ recipe-recommender/
 ```
 ---
 
+## 🖥️ Working Environment
+
+The application was developed and tested with the following environment:
+
+| Component | Version |
+|-----------|---------|
+| OS | Ubuntu 24.04.4 LTS (Noble Numbat) |
+| Python | 3.12.3 |
+| Streamlit | 1.55.0 |
+| Pandas | 2.3.3 |
+| NumPy | 2.4.4 |
+| scikit-learn | 1.8.0 |
+
+> **Note:** Other versions may work, but the above configuration is confirmed to run correctly.
+
+---
+
 ## 🛠️ Installation
 
 ### 1. Clone the repo
