@@ -77,14 +77,35 @@ Sidebar navigation includes:
 ```
 recipe-recommender/
 │
-├── app.py                  # Streamlit app
+├── app.py                          # Streamlit app
+├── requirements.txt                # Python dependencies
+│
 ├── src/
-│   ├── similarity.py       # Retrieval + ranking logic
-│   ├── filtering.py        # Filtering utilities
-│   └── data_processing.py  # Data cleaning + normalization
+│   ├── similarity.py               # Similarity-based retrieval logic
+│   ├── ranking.py                  # Recipe ranking logic
+│   ├── filtering.py                # Filtering utilities
+│   ├── vectorization.py            # Ingredient vectorization
+│   ├── ingredient_utils.py         # Ingredient normalization helpers
+│   ├── pantry.py                   # Pantry/ingredient matching logic
+│   └── data_processing.py          # Data cleaning + normalization
 │
 ├── models/
-│   └── recipe_metadata.csv # Cleaned recipe dataset
+│   ├── recipe_metadata.csv         # Cleaned recipe dataset
+│   ├── recipe_matrix.pt            # Precomputed recipe vectors
+│   └── ingredient_vocab_member2.csv# Ingredient vocabulary
+│
+├── data/
+│   └── processed/
+│       ├── clean_recipes_selected.csv
+│       ├── ingredient_vocab.csv
+│       ├── recipes_for_model.csv
+│       └── 1/                      # Versioned processed data
+│           ├── clean_recipes_selected.csv
+│           ├── ingredient_vocab.csv
+│           └── recipes_for_model.csv
+│
+├── docs/
+│   └── data_notes.md               # Notes on data sources and processing
 │
 └── README.md
 ```
