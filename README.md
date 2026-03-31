@@ -99,10 +99,6 @@ recipe-recommender/
 │       ├── clean_recipes_selected.csv
 │       ├── ingredient_vocab.csv
 │       ├── recipes_for_model.csv
-│       └── 1/                      # Versioned processed data
-│           ├── clean_recipes_selected.csv
-│           ├── ingredient_vocab.csv
-│           └── recipes_for_model.csv
 │
 ├── docs/
 │   └── data_notes.md               # Notes on data sources and processing
