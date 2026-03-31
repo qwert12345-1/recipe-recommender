@@ -6,6 +6,7 @@ import pandas as pd
 import torch
 from torch.utils.data import Dataset, DataLoader
 
+from ingredient_utils import normalize_ingredient_text
 
 class RecipeVectorizationError(Exception):
     pass

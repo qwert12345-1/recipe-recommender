@@ -4,7 +4,15 @@ import os
 import ast
 import re
 import json
+
 from collections import Counter
+from ingredient_utils import normalize_ingredient_text
+
+
+
+# ================================
+# Ingredient normalization rules
+# ================================
 
 COLUMNS_TO_KEEP = [
     "recipe_name",
@@ -97,33 +105,6 @@ def normalize_text_basic(text):
     return text if text else None
 
 
-def normalize_ingredient_name(name):
-    """
-    Normalize ingredient names for consistent downstream use.
-    This is intentionally simple and conservative.
-    """
-    if not isinstance(name, str):
-        return None
-
-    name = name.lower().strip()
-
-    # normalize separators
-    name = name.replace("-", " ")
-    name = name.replace("_", " ")
-    name = name.replace("/", " ")
-
-    # remove punctuation except spaces
-    name = re.sub(r"[^a-z\s]", "", name)
-
-    # collapse spaces
-    name = re.sub(r"\s+", " ", name).strip()
-
-    if not name:
-        return None
-
-    return name
-
-
 def normalize_list_column(x):
     """
     Normalize metadata columns that should behave like lists.
@@ -185,7 +166,7 @@ def extract_ingredient_names(ingredients_value):
         elif isinstance(item, str):
             raw_name = item
 
-        normalized_name = normalize_ingredient_name(raw_name)
+        normalized_name = normalize_ingredient_text(raw_name)
         if normalized_name:
             cleaned_names.append(normalized_name)
 
