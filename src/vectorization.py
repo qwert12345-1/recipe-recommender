@@ -6,7 +6,12 @@ import pandas as pd
 import torch
 from torch.utils.data import Dataset, DataLoader
 
-from ingredient_utils import normalize_ingredient_text
+from ingredient_utils import (
+    normalize_ingredient_text,
+    normalize_and_dedupe_ingredients,
+    safe_json_loads_list,
+)
+
 
 class RecipeVectorizationError(Exception):
     pass
@@ -22,18 +27,18 @@ def load_model_dataframe(csv_path: str) -> pd.DataFrame:
     df = pd.read_csv(csv_path)
 
     json_columns = [
-    "ingredients_clean",
-    "ingredient_lines",
-    "cuisine_type",
-    "diet_labels",
-    "health_labels",
-    "meal_type",
-    "dish_type",
+        "ingredients_clean",
+        "ingredient_lines",
+        "cuisine_type",
+        "diet_labels",
+        "health_labels",
+        "meal_type",
+        "dish_type",
     ]
 
     for col in json_columns:
         if col in df.columns:
-            df[col] = df[col].apply(_safe_json_loads_list)
+            df[col] = df[col].apply(safe_json_loads_list)
 
     required_cols = ["recipe_id", "recipe_name", "ingredients_clean"]
     missing = [col for col in required_cols if col not in df.columns]
@@ -45,56 +50,6 @@ def load_model_dataframe(csv_path: str) -> pd.DataFrame:
     return df
 
 
-def _safe_json_loads_list(x) -> List[str]:
-    """
-    Safely parse a JSON list. Return [] if malformed or missing.
-    """
-    if isinstance(x, list):
-        return x
-
-    if pd.isna(x):
-        return []
-
-    if isinstance(x, str):
-        x = x.strip()
-        if not x:
-            return []
-        try:
-            parsed = json.loads(x)
-            if isinstance(parsed, list):
-                return parsed
-        except Exception:
-            return []
-
-    return []
-
-
-def normalize_query_ingredient(text: str) -> Optional[str]:
-    """
-    Keep query normalization aligned with Member 1's ingredient normalization.
-    """
-    if not isinstance(text, str):
-        return None
-
-    text = text.lower().strip()
-    text = text.replace("-", " ")
-    text = text.replace("_", " ")
-    text = text.replace("/", " ")
-
-    cleaned = []
-    for ch in text:
-        if ch.isalpha() or ch.isspace():
-            cleaned.append(ch)
-
-    text = "".join(cleaned)
-    text = " ".join(text.split())
-
-    if not text:
-        return None
-
-    return text
-
-
 def build_vocab_from_dataframe(
     df: pd.DataFrame,
     min_freq: int = 1,
@@ -102,11 +57,6 @@ def build_vocab_from_dataframe(
 ) -> Tuple[Dict[str, int], Dict[int, str], pd.DataFrame]:
     """
     Build ingredient vocabulary from ingredients_clean column.
-
-    Returns:
-        ingredient_to_idx
-        idx_to_ingredient
-        vocab_df
     """
     if "ingredients_clean" not in df.columns:
         raise RecipeVectorizationError("DataFrame must contain 'ingredients_clean'.")
@@ -117,8 +67,9 @@ def build_vocab_from_dataframe(
         if not isinstance(ingredients, list):
             continue
         for ing in ingredients:
-            if isinstance(ing, str) and ing:
-                counter[ing] = counter.get(ing, 0) + 1
+            norm = normalize_ingredient_text(ing)
+            if norm:
+                counter[norm] = counter.get(norm, 0) + 1
 
     vocab_items = [
         {"ingredient": ingredient, "count": count}
@@ -169,15 +120,14 @@ def ingredients_to_binary_vector(
     ingredients: List[str],
     ingredient_to_idx: Dict[str, int],
 ) -> torch.Tensor:
-    """
-    Convert a list of ingredients into a binary multi-hot vector.
-    """
     vec = torch.zeros(len(ingredient_to_idx), dtype=torch.float32)
 
     if not isinstance(ingredients, list):
         return vec
 
-    for ing in ingredients:
+    normalized_ingredients = normalize_and_dedupe_ingredients(ingredients)
+
+    for ing in normalized_ingredients:
         if ing in ingredient_to_idx:
             vec[ingredient_to_idx[ing]] = 1.0
 
@@ -188,16 +138,18 @@ def ingredients_to_count_vector(
     ingredients: List[str],
     ingredient_to_idx: Dict[str, int],
 ) -> torch.Tensor:
-    """
-    Convert a list of ingredients into a count vector.
-    Usually binary is enough for your project, but this supports 'weighted' vectors too.
-    """
     vec = torch.zeros(len(ingredient_to_idx), dtype=torch.float32)
 
     if not isinstance(ingredients, list):
         return vec
 
+    normalized_ingredients = []
     for ing in ingredients:
+        norm = normalize_ingredient_text(ing)
+        if norm:
+            normalized_ingredients.append(norm)
+
+    for ing in normalized_ingredients:
         if ing in ingredient_to_idx:
             vec[ingredient_to_idx[ing]] += 1.0
 
@@ -209,10 +161,6 @@ def dataframe_to_recipe_matrix(
     ingredient_to_idx: Dict[str, int],
     vector_type: str = "binary",
 ) -> torch.Tensor:
-    """
-    Convert the whole recipe table into a recipe matrix of shape:
-        [num_recipes, vocab_size]
-    """
     if vector_type not in {"binary", "count"}:
         raise ValueError("vector_type must be 'binary' or 'count'")
 
@@ -236,14 +184,7 @@ def query_to_vector(
     ingredient_to_idx: Dict[str, int],
     vector_type: str = "binary",
 ) -> torch.Tensor:
-    """
-    Convert user input ingredients into the same vector format as recipes.
-    """
-    normalized = []
-    for ing in query_ingredients:
-        norm = normalize_query_ingredient(ing)
-        if norm:
-            normalized.append(norm)
+    normalized = normalize_and_dedupe_ingredients(query_ingredients)
 
     if vector_type == "binary":
         return ingredients_to_binary_vector(normalized, ingredient_to_idx)
@@ -300,10 +241,6 @@ def save_recipe_metadata(df: pd.DataFrame, save_path: str) -> None:
 
 
 class RecipeTensorDataset(Dataset):
-    """
-    Small PyTorch Dataset wrapper so Member 3 can use batching easily.
-    """
-
     def __init__(self, recipe_matrix: torch.Tensor):
         if recipe_matrix.ndim != 2:
             raise ValueError("recipe_matrix must be 2D: [num_recipes, vocab_size]")
@@ -334,13 +271,6 @@ def run_vectorization_pipeline(
     max_vocab_size: Optional[int] = None,
     vector_type: str = "binary",
 ) -> None:
-    """
-    End-to-end Member 2 pipeline:
-    1. load processed data
-    2. build vocab
-    3. vectorize recipes
-    4. save vocab, tensor, metadata
-    """
     print("Loading processed modeling CSV...")
     df = load_model_dataframe(model_csv_path)
     print(f"Loaded {len(df)} recipes")
@@ -369,7 +299,6 @@ def run_vectorization_pipeline(
     print(f"Saved vocab to: {vocab_save_path}")
     print(f"Saved recipe matrix to: {tensor_save_path}")
     print(f"Saved recipe metadata to: {metadata_save_path}")
-
     print("Done.")
 
 
@@ -378,12 +307,8 @@ def demo_query_vectorization(
     vocab_csv_path: str = "models/ingredient_vocab_member2.csv",
     vector_type: str = "binary",
 ) -> torch.Tensor:
-    """
-    Convenience helper for quick testing.
-    """
     ingredient_to_idx, _, _ = load_vocab(vocab_csv_path)
-    q = query_to_vector(query_ingredients, ingredient_to_idx, vector_type=vector_type)
-    return q
+    return query_to_vector(query_ingredients, ingredient_to_idx, vector_type=vector_type)
 
 
 if __name__ == "__main__":

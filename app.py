@@ -268,7 +268,7 @@ if page == "Recipe Search":
                 key=f"exclude_cuisines_{st.session_state.filter_widget_version}",
             )
             pantry_only = st.checkbox(
-                "Pantry only",
+                "Only show recipes requiring no extra ingredients",
                 value=False,
                 key=f"pantry_only_{st.session_state.filter_widget_version}",
             )
